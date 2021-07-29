@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = 'Josef Luo'
-__version_- = 'v0.1'
+__version__ = 'v0.1'
 
 '''
 JSON API Error definition
