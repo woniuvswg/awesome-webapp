@@ -8,9 +8,9 @@ __version__ = 'v0.1'
 
 from models import User, Comment, Blog, next_id
 from corweb import get, post
-import asyncio, re, time, hashlib, logging
+import asyncio, re, time, hashlib, logging, json
 from config import configs
-from apierror import APIValueError, APIResourceNotFoundError
+from apierror import APIValueError, APIResourceNotFoundError, APIError
 from aiohttp import web
 
 @get('/')
@@ -78,7 +78,7 @@ def register():
         '__template__': 'register.html'
 }
 
-@get('/signin'):
+@get('/signin')
 def signin():
     return {
         '__template__': 'signin.html'
@@ -113,13 +113,33 @@ async def authenticate(*, email, password):
 def signout(request):
     refer = request.headers.get('Referer')
     r = web.HTTPFound(referer or '/')
-    r.set_cookie(COOKIE_NAME, '-delectd-', max_age=0, httponly=True)
+    r.set_cookie(COOKIE_NAME, '-deleted-', max_age=0, httponly=True)
     logging.info('user signed out')
     return r
     
-_RE_EMAIL= re.compile(r'^[a-z0-9\.\-\_]+\@[a-z0-9\-\_]+(\.[a-z0-9\-\_]+){1, 4}$')
+_RE_EMAIL= re.compile(r'^[a-z0-9\.\-\_]+\@[a-z0-9\-\_]+(\.[a-z0-9\-\_]+){1,4}$')
 _RE_SHA1 = re.compile(r'^[0-9a-f]{40}$')
     
 @post('/api/users')
-async def api_refister_user(*, email, name, password):
-    pass
+async def api_register_user(*, email, name, password):
+    if not name or not name.strip():
+        raise APIValueError('name')
+    if not email or not _RE_EMAIL.match(email):
+        raise APIValueError('email')
+    if not password or not _RE_SHA1.match(password):
+        raise APIValueError('password')
+    users = await User.findAll('email=?', [email])
+    if len(users) > 0:
+        raise APIError('register:failed', 'email', 'Email is already in use')
+    uid = next_id()
+    sha1_password = '%s:%s' % (uid, password)
+    user = User(id=uid, name=name.strip(), email=email, password=hashlib.sha1(sha1_password.encode('utf-8')).hexdigest(), image='http://www.gravatar.com/avatar/%s?d=mm&s=120' % hashlib.md5(email.encode('utf-8')).hexdigest())
+    await user.save()
+    # make session cookie
+    r = web.Response()
+    r.set_cookie(COOKIE_NAME, user2cookie(user, 86400), max_age=86400, httponly=True)
+    user.password = '******'
+    r.content_type = 'application/json'
+    r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
+    return r 
+    
