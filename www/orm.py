@@ -172,10 +172,10 @@ class Model(dict, metaclass=ModelMetaclass):
             sql.append('LIMIT')
             if isinstance(limit, int):
                 sql.append('?')
-                sql.append(limit)
+                args.append(limit)
             elif isinstance(limit, tuple) and len(limit) == 2:
                 sql.append('?, ?')
-                sql.append(limit)
+                args.extend(limit)
             else:
                 raise ValueError('Invalid limit value: %s' % str(limit))
         rs = await select(' '.join(sql), args)
@@ -191,7 +191,7 @@ class Model(dict, metaclass=ModelMetaclass):
         rs = await select(' '.join(sql), args, 1)
         if len(rs) == 0:
             return None
-        return rs[0]['__num__']
+        return rs[0]['_num_']
     
     @classmethod
     async def find(cls, pk):
